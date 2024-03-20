@@ -1,6 +1,7 @@
 ls:
 	ls
 all:
-	gcc -o test test.c -I../library_files -L../library_files -lmsocket
+	gcc -o user1 user1.c -I../library_files -L../library_files -lmsocket
+	gcc -o user2 user2.c -I../library_files -L../library_files -lmsocket
 clean:
-	rm test
+	rm user1 user2

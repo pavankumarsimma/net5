@@ -19,6 +19,15 @@ int main(){
     int shm_SM = shmget(3501, sizeof(mtp_socket_info)*MAX_SOCKETS, 0777|IPC_CREAT);
     SM = (mtp_socket_info*) shmat(shm_SM, 0, 0);
 
+    for(int i=0; i<MAX_SOCKETS; i++){
+        SM[i].alloted = 0;
+        SM[i].send_window.send_wnd_size= RECV_BUF_SIZE;
+        SM[i].recv_window.recv_wnd_size= RECV_BUF_SIZE;
+        for(int j=0; j<RECV_BUF_SIZE; j++){
+            SM[i].recv_window.sequence[j] = j%SEQ;
+        }
+    }
+
     // creating the semaphores
     int sem1, sem2;
     struct sembuf sem1_op;
@@ -123,11 +132,59 @@ void* R(void* arg){
 
         int activity = select(maxfd+1, &readfds, NULL, NULL,&tv );
         if (activity == -1){
-            perror("Select: ");
+            perror("Select");
         }
         else if (activity == 0){
             // time  out happend
-            
+            for (int i=0; i<MAX_SOCKETS; i++){
+                if (SM[i].alloted==1){
+                    if (!kill(SM[i].pid, 0)){} // killed process
+                    else {
+                        if (SM[i].recv_buf.flag_nospace==1){
+                            int sp = 0;
+                            for(int j=0; j<RECV_BUF_SIZE; j++){
+                                if (SM[i].recv_buf.recv_buffer[j].occupied==0){
+                                    sp++;
+                                }
+                            }
+                            if (sp > 0){
+                                // now space is available
+                                SM[i].recv_buf.flag_nospace = 0;
+                                char frame[FRAME_SIZE];
+                                memset(frame, 0, FRAME_SIZE);
+                                sprintf(frame, "ACK %s %d", convertSeqToStr(SM[i].recv_buf.last_inorder_seq), sp);
+                                int by_sent = sendto(SM[i].udp_sock_id, frame, FRAME_SIZE, 0, (const struct sockaddr*)&SM[i].other, sizeof(SM[i].other));
+                                if (by_sent < 0){
+                                    printf("ack-sent error\n");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        else {
+            // check for every socket
+            for (int i=0; i<MAX_SOCKETS; i++){
+                if (SM[i].alloted==1){
+                    if (!kill(SM[i].pid, 0)){} // killed process
+                    else {
+                        if (FD_ISSET(SM[i].udp_sock_id, &readfds)){
+                            char frame[FRAME_SIZE];
+                            memset(frame, 0, FRAME_SIZE);
+                            int by_recv = recvfrom(SM[i].udp_sock_id, frame, FRAME_SIZE, 0, (const struct sockaddr*)&SM[i].other, sizeof(SM[i].other));
+                            if (strncmp(frame, "DAT", 3)==0){
+                                // data frame
+                                
+                            }
+                            else {
+                                // ack frame
+                                
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         mtx_op.sem_op = 1;
@@ -136,6 +193,95 @@ void* R(void* arg){
     return NULL;
 }
 void* S(void* arg){
+    while(1){
+        sleep(T/2-1);
+        mtx_op.sem_op = -1;
+        semop(mutex, &mtx_op, 1);   // wait
+        for (int i=0; i<MAX_SOCKETS; i++){
+            if (SM[i].alloted == 1){
+                if (!kill(SM[i].pid, 0)){
+                    // killed process
+                    
+                }
+                else {
+                    int index = (SM[i].send_window.start_index + SM[i].send_window.send_wnd_size)%SEND_BUF_SIZE;
+                    struct timeval current_time;
+                    set_curr_time(&current_time);
+                    long time_diff = (current_time.tv_sec - SM[i].send_buf.send_buffer[SM[i].send_window.start_index].sent_time.tv_sec) * 1000000L +
+                                        current_time.tv_usec - SM[i].send_buf.send_buffer[SM[i].send_window.start_index].sent_time.tv_usec;
+
+                    if (time_diff >= T*1000000L){
+                        // timeout occured retransmit all themessages in the window
+                        int j= SM[i].send_window.start_index;
+                        while(1){
+                            if ( index>=SM[i].send_window.start_index ){
+                                if (j<SM[i].send_window.start_index || j>=index){
+                                    break;
+                                }
+                            }
+                            if ( index<=SM[i].send_window.start_index){
+                                if (j<SM[i].send_window.start_index && j>=index){
+                                    break;
+                                }
+                            }
+                            char frame[FRAME_SIZE];
+                            memset(frame, 0, FRAME_SIZE);
+                            // DATA frame
+                            sprintf(frame, "DAT %s %s", convertSeqToStr(SM[i].send_buf.send_buffer[j].seq), SM[i].send_buf.send_buffer[j].msg);
+                            int by_sent = sendto(SM[i].udp_sock_id, frame, FRAME_SIZE, 0, (const struct sockaddr*)&SM[i].other, sizeof(SM[i].other));
+                            if (by_sent < 0){
+                                printf("timeout-sent error\n");
+                            }
+                            SM[i].send_buf.send_buffer[j].sent = 1;
+                            set_curr_time(&SM[i].send_buf.send_buffer[j].sent_time );
+                            j++;
+                            j = j%SEND_BUF_SIZE;
+                        }
+                    }
+                    // send any messages which are ready to send
+                    int j=index;
+                    if (SM[i].send_buf.recv_buf_size <= 0){
+                        continue;
+                    }
+                    int k = SM[i].send_buf.recv_buf_size;
+                    while(1){
+                        index = (SM[i].send_window.start_index + SM[i].send_window.send_wnd_size)%SEND_BUF_SIZE;
+                        if (index>=SM[i].send_window.start_index){
+                            if (j<SM[i].send_window.start_index || j>=index){}
+                            else break;
+                        }
+                        if (index<SM[i].send_window.start_index){
+                            if (j<SM[i].send_window.start_index && j>=index){}
+                            else break;
+                        }
+                        if (SM[i].send_buf.send_buffer[j].occupied==1 && SM[i].send_buf.send_buffer[j].sent==0){
+                            // not yet sent 
+                            if (k>0){
+                                char frame[FRAME_SIZE];
+                                memset(frame, 0, FRAME_SIZE);
+                                // DATA frame
+                                sprintf(frame, "DAT %s %s", convertSeqToStr(SM[i].send_buf.send_buffer[j].seq), SM[i].send_buf.send_buffer[j].msg);
+                                int by_sent = sendto(SM[i].udp_sock_id, frame, FRAME_SIZE, 0, (const struct sockaddr*)&SM[i].other, sizeof(SM[i].other));
+                                if (by_sent < 0){
+                                    printf("data-sent error\n");
+                                }
+                                SM[i].send_window.send_wnd_size++;
+                                SM[i].send_buf.send_buffer[j].sent = 1;
+                                set_curr_time(&SM[i].send_buf.send_buffer[j].sent_time );
+                                k--;
+                            }
+                            else break;
+                        }
+                        j++;
+                        j = j%SEND_BUF_SIZE;
+                    }
+                }
+            }
+        }
+
+        mtx_op.sem_op = 1;
+        semop(mutex, &mtx_op, 1);   // signal
+    }
     
     return NULL;    
 }

@@ -11,6 +11,8 @@
 #include <sys/sem.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <arpa/inet.h>
+#include <signal.h>
 
 
 
@@ -23,6 +25,8 @@
 #define SEND_BUF_SIZE 10
 #define RECV_BUF_SIZE 5
 #define MSG_SIZE 1024
+#define FRAME_SIZE 1033
+#define SEQ 16
 
 // errors
 #define ENOTBOUND 99
@@ -31,12 +35,24 @@ typedef struct sbuf {
     char msg[MSG_SIZE];
     struct timeval sent_time;
     int sent;
+    int seq;
     int occupied;
 }sbuf;
+typedef struct SEND_B {
+    int recv_buf_size;
+    sbuf send_buffer[SEND_BUF_SIZE];
+}SEND_B;
+typedef struct RECV_B {
+    int last_inorder_seq;
+    int flag_nospace;
+    rbuf recv_buffer[RECV_BUF_SIZE];
+    rbuf outoforder[RECV_BUF_SIZE];
+}RECV_B;
 typedef struct rbuf {
     char msg[MSG_SIZE];
     struct timeval recv_time;
     int occupied;
+    int seq;
     int recvd;
 }rbuf;
 typedef struct swnd {
@@ -47,7 +63,7 @@ typedef struct swnd {
 typedef struct rwnd{
     int recv_wnd_size;
     int start_index;
-    int sequence[SEND_BUF_SIZE]; // msgs that are received but not yet acknowledged
+    int sequence[RECV_BUF_SIZE]; // msgs that are received but not yet acknowledged
 }rwnd;
 
 typedef struct mtp_socket_info {
@@ -55,8 +71,8 @@ typedef struct mtp_socket_info {
     pid_t pid;
     int udp_sock_id;
     struct sockaddr_in other;
-    sbuf send_buffer[SEND_BUF_SIZE];
-    rbuf recv_buffer[RECV_BUF_SIZE];
+    SEND_B send_buf;
+    RECV_B recv_buf;
     swnd send_window;
     rwnd recv_window;
 }mtp_socket_info;
@@ -77,3 +93,7 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *sr
 int m_close(int sockfd);
 int dropMessage(float);
 void set_curr_time(struct timeval*);
+int min(int x, int y);
+int max(int x, int y);
+char* convertSeqToStr(int n);
+int convertStrToSeq(char *);
