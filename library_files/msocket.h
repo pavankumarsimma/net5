@@ -40,14 +40,10 @@ typedef struct sbuf {
 }sbuf;
 typedef struct SEND_B {
     int recv_buf_size;
+    int last_ack_seq;
     sbuf send_buffer[SEND_BUF_SIZE];
 }SEND_B;
-typedef struct RECV_B {
-    int last_inorder_seq;
-    int flag_nospace;
-    rbuf recv_buffer[RECV_BUF_SIZE];
-    rbuf outoforder[RECV_BUF_SIZE];
-}RECV_B;
+
 typedef struct rbuf {
     char msg[MSG_SIZE];
     struct timeval recv_time;
@@ -55,6 +51,12 @@ typedef struct rbuf {
     int seq;
     int recvd;
 }rbuf;
+typedef struct RECV_B {
+    int last_inorder_seq;
+    int flag_nospace;
+    rbuf recv_buffer[RECV_BUF_SIZE];
+    rbuf outoforder[RECV_BUF_SIZE];
+}RECV_B;
 typedef struct swnd {
     int send_wnd_size;
     int start_index;
@@ -88,12 +90,15 @@ extern int m_errno;
 // Function prototypes
 int m_socket(int domain, int type, int protocol);
 int m_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen, const struct sockaddr* dest, socklen_t destlen );
-int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
-int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *addr, socklen_t addrlen);
+int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *addr, socklen_t *addrlen);
 int m_close(int sockfd);
 int dropMessage(float);
 void set_curr_time(struct timeval*);
 int min(int x, int y);
 int max(int x, int y);
-char* convertSeqToStr(int n);
+void convertSeqToStr(int n, char * );
 int convertStrToSeq(char *);
+
+void semaphore_wait(int sem);
+void semaphore_signal(int sem);
