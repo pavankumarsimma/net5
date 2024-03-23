@@ -154,10 +154,12 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
     if (sockfd <0 || sockfd>=MAX_SOCKETS){
         return_value = -1;
         errno = EBADF;
+        printf("invalid socket id\n");
     }
     else if (SM[sockfd].alloted != 1){
         return_value = -1;
         errno = EBADF;
+        printf("invalid socket id\n");
     }
     else if (SM[sockfd].other.sin_addr.s_addr== dest.sin_addr.s_addr && SM[sockfd].other.sin_port==dest.sin_port){
         // bound
@@ -193,7 +195,7 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
                     SM[sockfd].send_buf.send_buffer[index].seq = (SM[sockfd].send_buf.send_buffer[(index-1+SEND_BUF_SIZE)%SEND_BUF_SIZE].seq+1)%SEQ;
                     //SM[sockfd].send_window.send_wnd_size++;
                     printf("seq num: %d win: %d\n", SM[sockfd].send_buf.send_buffer[index].seq, SM[sockfd].send_window.send_wnd_size);
-
+                    SM[sockfd].send_buf.tot_msgs++;
                     return_value = min(len, MSG_SIZE);
                     //break;
                 }
@@ -203,12 +205,14 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
         }
         else  {
             // no space is there in sender buffer
+            printf("no buffer\n");
             return_value = -1;
             errno = ENOBUFS;
         }
     }
     else {
         // not bound
+        printf("not bound\n");
         return_value = -1;
         errno = ENOTCONN;
     }
@@ -260,7 +264,7 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *ad
            printf("came here\n");
             if (SM[sockfd].recv_buf.recv_buffer[i].recvd==0 && SM[sockfd].recv_buf.recv_buffer[i].occupied==1){
                 // means a valid msg that can be received
-                printf("c: %s$\n", SM[sockfd].recv_buf.recv_buffer[i].msg);
+                printf("c: %s\n", SM[sockfd].recv_buf.recv_buffer[i].msg);
                 strcpy(buf, SM[sockfd].recv_buf.recv_buffer[i].msg);
                 printf("recvd seq:%d\n", SM[sockfd].recv_buf.recv_buffer[i].seq);
                 SM[sockfd].recv_buf.recv_buffer[i].recvd=0;

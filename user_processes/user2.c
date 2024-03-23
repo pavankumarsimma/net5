@@ -1,7 +1,8 @@
 #include "msocket.h"
+#include <fcntl.h>
+
 
 int main(){
-    sleep(1);
     int mtp_sock = m_socket(AF_INET, SOCK_MTP, 0);
 	printf("socket created\n");    
     printf("mtp Socket id: %d\n", mtp_sock);
@@ -14,28 +15,33 @@ int main(){
    cli_addr.sin_family = AF_INET;
    cli_addr.sin_port = htons(9500);
    cli_addr.sin_addr.s_addr = INADDR_ANY;
-   char buf[FRAME_SIZE];
+   char buf[MSG_SIZE];
     m_bind(mtp_sock, (const struct sockaddr*)&serv_addr, sizeof(serv_addr), (struct sockaddr*)&cli_addr, sizeof(cli_addr));
-    printf("binded\n");
-    sleep(7);
-    memset(buf, 0, FRAME_SIZE);
-    m_recvfrom(mtp_sock, buf, FRAME_SIZE, 0, (struct sockaddr*)&cli_addr, NULL);
-    printf("[+] %s\n", buf);
-    
-    memset(buf, 0, FRAME_SIZE);
-    sprintf(buf, "Hellohifromuser2_alliswell");
-    m_sendto(mtp_sock, buf, FRAME_SIZE, 0, (const struct sockaddr*)&cli_addr, sizeof(cli_addr));
-    printf("[-] %s\n", buf);
-
-    sleep(7);
-    memset(buf, 0, FRAME_SIZE);
-    m_recvfrom(mtp_sock, buf, FRAME_SIZE, 0, (struct sockaddr*)&cli_addr, NULL);
-    printf("[+] %s\n", buf);
-
-
+    printf("socket bound to port %d\n", serv_addr.sin_port);
+    sleep(10);
+    printf("receiving file from user_1\n");
+    int fd = open("test1.rec.txt", O_CREAT|O_WRONLY|O_TRUNC, 0777);
+    int flag = 0;
+    sleep(10);
+    while(1){
+        sleep(1);
+        memset(buf, 0, MSG_SIZE);
+        int n = m_recvfrom(mtp_sock, buf, MSG_SIZE, 0, (struct sockaddr*)&cli_addr, NULL);
+        //if (n<0) break;
+        for(int i=0; i<n; i++){
+            if (buf[i] == '$'){
+                flag = 1;
+                break;
+            }
+            write(fd, &buf[i], 1);
+        }
+        if (flag ==1 ) break;
+    }
+    printf("received file\n");
+    close(fd);
     sleep(30);
     m_close(mtp_sock);
-   printf("socket closed\n");
+   printf("closing\n");
    
     return 0;
 }

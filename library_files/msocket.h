@@ -16,12 +16,12 @@
 
 
 
-#define p 0.05
-#define T 5
+#define p (0.005)
+#define T 10
 
 // Custom socket type for MTP
 #define SOCK_MTP 3
-#define MAX_SOCKETS 3
+#define MAX_SOCKETS 25
 #define SEND_BUF_SIZE 10
 #define RECV_BUF_SIZE 5
 #define MSG_SIZE 1024
@@ -41,6 +41,8 @@ typedef struct sbuf {
 typedef struct SEND_B {
     int recv_buf_size;
     int last_ack_seq;
+    int tot_msgs;
+    int tot_sends;
     sbuf send_buffer[SEND_BUF_SIZE];
 }SEND_B;
 
