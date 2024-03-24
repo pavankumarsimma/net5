@@ -28,7 +28,7 @@ int m_socket(int domain, int type, int protocol){
         if (SM[i].alloted == 0){
             // not alloted
 
-            printf("[%d]\n", i);
+            //printf("[%d]\n", i);
             sem1_op.sem_op = 1;
             semop(sem1, &sem1_op, 1);   // signal sem1
             //semaphore_signal(mutex);
@@ -43,7 +43,7 @@ int m_socket(int domain, int type, int protocol){
                 return_value = -1;
             }
             else {
-                printf("[%d] socket alloted %d\n", i, SOCK_INFO->sock_id);
+                printf("mtp:[%d]-udp socket alloted %d\n", i, SOCK_INFO->sock_id);
                 SM[i].alloted = 1;
                 return_value = i;
                 SM[i].pid = getpid();
@@ -188,13 +188,13 @@ int m_sendto(int sockfd, const void *buf, size_t len, int flags, const struct so
                 if (SM[sockfd].send_buf.send_buffer[i].occupied==0){
                     // means a space for the message
                     memset(SM[sockfd].send_buf.send_buffer, 0, min(len, MSG_SIZE));
-                    strncpy(SM[sockfd].send_buf.send_buffer[index].msg, (char *)buf, len);
-                    printf("sendto success\n");
+                    strcpy(SM[sockfd].send_buf.send_buffer[index].msg, (char *)buf);
+                    //printf("sendto success\n");
                     SM[sockfd].send_buf.send_buffer[index].occupied = 1;
                     SM[sockfd].send_buf.send_buffer[index].sent = 0;
                     SM[sockfd].send_buf.send_buffer[index].seq = (SM[sockfd].send_buf.send_buffer[(index-1+SEND_BUF_SIZE)%SEND_BUF_SIZE].seq+1)%SEQ;
                     //SM[sockfd].send_window.send_wnd_size++;
-                    printf("seq num: %d win: %d\n", SM[sockfd].send_buf.send_buffer[index].seq, SM[sockfd].send_window.send_wnd_size);
+                    //printf("seq num: %d win: %d\n", SM[sockfd].send_buf.send_buffer[index].seq, SM[sockfd].send_window.send_wnd_size);
                     SM[sockfd].send_buf.tot_msgs++;
                     return_value = min(len, MSG_SIZE);
                     //break;
@@ -238,7 +238,7 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *ad
     semop(mutex, &mtx_op, 1);
     
     int index = (SM[sockfd].recv_window.start_index + SM[sockfd].recv_window.recv_wnd_size)%RECV_BUF_SIZE;
-    printf("enterted recvfrom\n");
+    //printf("enterted recvfrom\n");
     if (sockfd <0 || sockfd>=MAX_SOCKETS){
         return_value = -1;
         errno = EBADF;
@@ -261,20 +261,22 @@ int m_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *ad
                 
             }
             */
-           printf("came here\n");
             if (SM[sockfd].recv_buf.recv_buffer[i].recvd==0 && SM[sockfd].recv_buf.recv_buffer[i].occupied==1){
                 // means a valid msg that can be received
-                printf("c: %s\n", SM[sockfd].recv_buf.recv_buffer[i].msg);
+                //printf("c: %s\n", SM[sockfd].recv_buf.recv_buffer[i].msg);
                 strcpy(buf, SM[sockfd].recv_buf.recv_buffer[i].msg);
-                printf("recvd seq:%d\n", SM[sockfd].recv_buf.recv_buffer[i].seq);
+                //printf("recvd seq:%d\n", SM[sockfd].recv_buf.recv_buffer[i].seq);
                 SM[sockfd].recv_buf.recv_buffer[i].recvd=0;
                 SM[sockfd].recv_buf.recv_buffer[i].occupied=0;
                 memset(SM[sockfd].recv_buf.recv_buffer[i].msg, 0, MSG_SIZE);
                 SM[sockfd].recv_window.recv_wnd_size--;
                 SM[sockfd].recv_window.start_index++;
+                SM[sockfd].recv_window.start_index = SM[sockfd].recv_window.start_index % RECV_BUF_SIZE;
                 return_value = min(len, MSG_SIZE);
+                printf("recv: s:%d l:%d\n", SM[sockfd].recv_window.start_index, SM[sockfd].recv_window.recv_wnd_size);
                 //break;
             }
+            //printf("here\n");
             // i++;
             // i = i%RECV_BUF_SIZE;
         //}
@@ -335,7 +337,7 @@ int m_close(int sockfd){
 
 int dropMessage(float a) {
     float random_num = ((float) rand()) / RAND_MAX; // Generate random number between 0 and 1
-    return (random_num < p) ? 1 : 0; // Return 1 if random_num is less than p, else return 0
+    return (random_num < a) ? 1 : 0; // Return 1 if random_num is less than p, else return 0
 }
 
 

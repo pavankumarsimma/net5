@@ -16,8 +16,8 @@
 
 
 
-#define p (0.005)
-#define T 10
+#define p (0.05)
+#define T 5
 
 // Custom socket type for MTP
 #define SOCK_MTP 3

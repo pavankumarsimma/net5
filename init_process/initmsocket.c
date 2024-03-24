@@ -213,6 +213,10 @@ void* R(void* arg){
                             char frame[FRAME_SIZE];
                             memset(frame, 0, FRAME_SIZE);
                             int by_recv = recvfrom(SM[i].udp_sock_id, frame, FRAME_SIZE, 0, (struct sockaddr*)&SM[i].other, NULL);
+                            printf("recvd\n");
+                            frame[FRAME_SIZE-1]='\0';
+                            frame[FRAME_SIZE-2]='\0';
+                            frame[FRAME_SIZE-3]='\0';
                             printf("frame:%s\n", frame);
                             printf("sock: %d pid: %d\n",i, SM[i].pid);
                             int k = dropMessage(p);
@@ -247,12 +251,9 @@ void* R(void* arg){
                                         //printf("MSG: %s\n", msg);
                                         sp = RECV_BUF_SIZE-SM[i].recv_window.recv_wnd_size;
                                         strcpy(SM[i].recv_buf.recv_buffer[index].msg, msg);
-                                        
-                                    }
-                                }
-                                else {
-                                    // out of order msg came
+                                        printf("s:%d l:%d\n", SM[i].recv_window.start_index, SM[i].recv_window.recv_wnd_size);
 
+                                    }
                                 }
                                 if (sp == 0){
                                     SM[i].recv_buf.flag_nospace = 1;
@@ -340,7 +341,7 @@ void* R(void* arg){
 void* S(void* arg){
     while(1){
         //sleep(T/2-1);
-        sleep(7);
+        sleep(2);
         usleep(5);
         // mtx_op.sem_op = -1;
         // semop(mutex, &mtx_op, 1);   // wait
@@ -386,7 +387,7 @@ void* S(void* arg){
                             strcpy(&frame[8], "-");
                             strcpy(&frame[9], SM[i].send_buf.send_buffer[j].msg);
                             printf("sent:%s\n", frame);
-                            int by_sent = sendto(SM[i].udp_sock_id, frame, strlen(frame), 0, (const struct sockaddr*)&SM[i].other, sizeof(SM[i].other));
+                            int by_sent = sendto(SM[i].udp_sock_id, frame, FRAME_SIZE, 0, (const struct sockaddr*)&SM[i].other, sizeof(SM[i].other));
                             if (by_sent < 0){
                                 printf("timeout-sent error\n");
                             }
@@ -434,7 +435,7 @@ void* S(void* arg){
                                 strcpy(&frame[8], "-");
                                 strcpy(&frame[9], SM[i].send_buf.send_buffer[j].msg);
                                 printf("sent:%s\n", frame);
-                                int by_sent = sendto(SM[i].udp_sock_id, frame, strlen(frame), 0, (const struct sockaddr*)&SM[i].other, sizeof(SM[i].other));
+                                int by_sent = sendto(SM[i].udp_sock_id, frame, FRAME_SIZE, 0, (const struct sockaddr*)&SM[i].other, sizeof(SM[i].other));
                                 if (by_sent < 0){
                                     printf("data-sent error\n");
                                     break;
@@ -465,14 +466,15 @@ void* S(void* arg){
 }
 void* G(void* arg){
     while(1){
-        sleep(15);
+        sleep(9);
         // mtx_op.sem_op = -1;
         // semop(mutex, &mtx_op, 1);  // wait
         pthread_mutex_lock(&thread_mutex);
         for(int i=0; i<MAX_SOCKETS; i++){
             // close those udp sockets for killed processes
-            if (SM[i].alloted==1 && kill(SM[i].pid, 0)!=0 && SM[i].send_window.send_wnd_size!=0) { 
-                printf("**TOTAL MSGS:%d\nTOTAL SENDS:%d\n", SM[i].send_buf.tot_msgs, SM[i].send_buf.tot_sends);
+            if (SM[i].alloted==1 && kill(SM[i].pid, 0)!=0 ) {
+                printf("** FOR: mtp_sock:%d - pid:%d\n", i, SM[i].pid);
+                printf("TOTAL MSGS:%d\nTOTAL SENDS:%d  **\n", SM[i].send_buf.tot_msgs, SM[i].send_buf.tot_sends);
                 close(SM[i].udp_sock_id);
                 SM[i].alloted = 0;
                 SM[i].send_buf.send_buffer[SEND_BUF_SIZE-1].seq = 0;

@@ -18,16 +18,15 @@ int main(){
    char buf[MSG_SIZE];
     m_bind(mtp_sock, (const struct sockaddr*)&serv_addr, sizeof(serv_addr), (struct sockaddr*)&cli_addr, sizeof(cli_addr));
     printf("socket bound to port %d\n", serv_addr.sin_port);
-    sleep(10);
     printf("receiving file from user_1\n");
     int fd = open("test1.rec.txt", O_CREAT|O_WRONLY|O_TRUNC, 0777);
     int flag = 0;
-    sleep(10);
+    sleep(1);
     while(1){
-        sleep(1);
         memset(buf, 0, MSG_SIZE);
         int n = m_recvfrom(mtp_sock, buf, MSG_SIZE, 0, (struct sockaddr*)&cli_addr, NULL);
         //if (n<0) break;
+        if(buf[0]!='\0')printf("[+] %s\n", buf);
         for(int i=0; i<n; i++){
             if (buf[i] == '$'){
                 flag = 1;
@@ -36,10 +35,10 @@ int main(){
             write(fd, &buf[i], 1);
         }
         if (flag ==1 ) break;
+        usleep(5000);
     }
-    printf("received file\n");
     close(fd);
-    sleep(30);
+    sleep(3);
     m_close(mtp_sock);
    printf("closing\n");
    
